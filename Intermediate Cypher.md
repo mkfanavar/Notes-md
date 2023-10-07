@@ -1,5 +1,7 @@
 # Intermediate Cypher
 
+# Filtering Queries
+
 ## some useful commands to understand your database better
 
 ```cypher
@@ -82,7 +84,7 @@ Explain <Query>
 // this show paln
 ```
 
-<img src="C:\Users\Mahdi\Desktop\Notes\images\image-20231005101807111.png" style="zoom: 50%;" />
+<img src=".\images\image-20231005101807111.png" style="zoom: 50%;" />
 
 
 
@@ -108,3 +110,235 @@ where p.name = "Tom Hanks"
 return p.name, labels(p), m.title
 // in this solution db hits is 105
 ```
+
+
+
+# Controlling Results Returned
+
+## Ordering returned values
+
+by default text order alphabetical, numeric values order numerically , ...
+
+```cypher
+// order based on date
+match (p:Person)
+where p.born.year = 2000
+return p.name as name, p.born.year as born
+order by p.born desc
+
+// order by multiple value
+match (p:Person)-[:ACTED_IN|DIRECTED]->(m:Movie)
+where p.name = 'Tom Hanks'
+or p.name = 'Tom Cruise'
+return m.year, m.title
+order by m.year desc, m.title
+    
+// all movie titles order by imdb rating
+MATCH (m:Movie)
+WHERE m.imdbRating IS NOT NULL
+RETURN m.title, m.imdbRating
+ORDER BY m.imdbRating DESC
+```
+
+## Limiting Results
+
+```cypher
+// `limit` returned results 
+match (m:Movie)
+where m.released is not null
+return m.title as title, m.released as releasedAt
+order by m.released limit 100
+
+// use `skip` for pagination
+match (p:Person)
+where p.born.year = 1990
+return p.name as name, p.born as born
+order by p.born skip 40 limit 10
+
+// eliminate duplicate records with `distinct`
+match (p:Person)-[:ACTED_IN|DIRECTED]->(m:Movie)
+where p.name = "Tom Hanks"
+return distinct m.title, m.released
+
+//
+match (m:Movie)
+return distinct m.year
+order by m.year
+
+// distinct nodes
+match (p:Person)-[:DIRECTED|ACTED_IN]->(m:Movie)
+where p.name = "Tom Hanks"
+return distinct m
+
+// find lowest imdbRating value
+match (m:Movie)
+where m.imdbRating is not null
+return m.imdbRating
+order by m.imdbRating limit 1
+
+// 
+MATCH (p:Person)-[:ACTED_IN| DIRECTED]->(m)
+WHERE m.title = 'Toy Story'
+MATCH (p)-[:ACTED_IN]->()<-[:ACTED_IN]-(p2:Person)
+RETURN distinct  p.name, p2.name
+```
+
+## Map Projections
+
+when you return a node from cypher it will return some internal values as well as node properties.
+you can specify what properties of node should be in result of query
+
+```cypher
+// Maps in cypher
+// a list of key value pairs...
+return {sat: 23, sun: 12, mon: 18,tue: 10, wed: 22, thu: 8, fri: 21} as days
+// select specified key
+return {sat: 23, sun: 12, mon: 18,tue: 10, wed: 22, thu: 8, fri: 21}["mon"] as days
+return {sat: 23, sun: 12, mon: 18,tue: 10, wed: 22, thu: 8, fri: 21}.mon as days
+// return a list of keys
+return keys({sat: 23, sun: 12, mon: 18,tue: 10, wed: 22, thu: 8, fri: 21}) as days
+// when we return a node, values returned as map
+
+// lets look at maps projection with some examples
+// this will just return node properties values
+match (p:Person)
+return p {.*} as person
+limit 10
+
+// return only some properties
+match (p:Person)
+return p {.bornIn, .name} as person
+limit 10
+
+// return arbitrary values in object
+match (p:Person)-[:ACTED_IN]->(m:Movie)-[:IN_GENRE]->(g:Genre)
+where g.name = "Comedy" and p.name = "Tom Hanks"
+return m {.*, favorite: true}
+```
+
+## Changing Result Returned
+
+```cypher
+// using date()
+match (p:Person)
+where p.born.year < 1930 and p.died is null
+return p.name, date().year - p.born.year as age
+
+//concatnation
+match (p:Person)
+where p.born.year < 1930 and p.died is null
+return "Actor: " + p.name as name, date().year - p.born.year as age
+
+// conditional properties
+match (p:Person)
+where p:Actor
+return p.name,p.born,
+case
+when p.born.year < 1970 then "oldies"
+when 1970 <= p.born.year <= 2000 then "bommers"
+when 2000 <= p.born.year then "gen-z"
+else "unidentified"
+end
+as generation
+order by p.name limit 500
+```
+
+# Working With Cypher Data
+
+## Aggregating Data
+
+```cypher
+// aggregation function count()
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Tom Hanks"
+return p.name as actorName,
+count (*) as numMovies
+
+// find actor, director pair with most work together
+match (p:Person)-[:ACTED_IN]->(:Movie)<-[:DIRECTED]-(d:Director)
+where p <> d
+return p.name as actor, d.name as director, count (*) as numMovies
+order by numMovies desc
+limit 10
+
+// count(n) vs count(*)
+// count (n) : the graph engine calculates the number of non-null occurrences of n.
+// count (*) : the graph engine calculates the number of rows retrieved, including those with null values.
+
+// return a list
+match (p:Person)
+return p.name , [p.born, p.died] as lifeTime
+limit 10
+
+// aggregation function collect()
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+return p.name as actor,
+count(*) as total,
+collect(m.title) as movies
+order by total desc limit 10
+
+// usage of distinct in collect function
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where m.year = 1920
+return collect(distinct m.title) as movies,
+collect(p.name) as actors
+
+// use collect function on nodes + usage of prorperty selection in collect function
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Tom Cruise"
+return collect(m {.title, .year}) as movies
+
+// usage of index + size function
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+return m.title as movie,
+collect(p.name)[0] as fistCast,
+size(collect(p.name)) as castSize
+
+// return slice of collection
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+return m.title as movie,
+collect(p.name)[2..] as actors,
+size(collect(p.name)) as castSize
+
+// other aagregation functions are (add explanation and examples)
+// min()
+// max()
+// avg()
+// stddev()
+// sum
+
+
+// count() vs size()
+// use count to count rows and size for size of collected results
+// in most cases count is more performant... why?
+
+
+// list comprehension...explain more.
+match (m:Movie)
+return m.title as movie,
+[x in m.countries where x = "USA" or x = "Germany"]
+as country limit 100
+
+// pattern comprehension [<pattern>|<return-value>]
+match (p:Person {name: "Tom Hanks"})
+return [(p)-->(m:Movie) where m.title contains "Toy" | m.title + ": "+ m.year] as movies
+// result: ["Toy Story of Terror: 2013", "Toy Story 3: 2010", "Toy Story 2: 1999", "Toy Story: 1995"]
+
+// another example
+match (m:Movie)
+where m.year = 2015
+return m.title,
+[(dir:Person)-[:DIRECTED]->(m) | dir.name] as directors,
+[(act:Person)-[:ACTED_IN]->(m) | act.name] as actors
+
+// explain it:
+match (p:Person)-[:DIRECTED]->(m:Movie)
+return p.name, count(*)
+order by count(*) desc
+```
+
+## Working with Date and Time
+
+```cypher
+```
+
