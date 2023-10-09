@@ -340,5 +340,195 @@ order by count(*) desc
 ## Working with Date and Time
 
 ```cypher
+// cypher has three different time data which ...
+return date(), datetime(), time()
+//"2023-10-08", "2023-10-08T04:28:14.937000000Z", "04:28:14.937000000Z"
+
+// to test datetime features of neo4j we create a test node on database
+merge (x:Test {id: 1})
+set x.date = date()
+	x.datetime = datetime()
+	x.time = time()
+
+// to check data types in database we use this command
+call apoc.meta.nodeTypeProperties()
+// we see there is thre data type of Date, DateTime and Time for label of Test
 ```
+
+![image-20231008080818870](C:\Users\Mahdi\Documents\Notes\images\image-20231008080818870.png)
+
+```cypher
+// you can access components of date types
+match (x:Test)
+return x.date.day, x.date.year, x.datetime.year, x.datetime.hour, x.datetime.minute
+
+// you can use string to set a value for a date or datetime
+match (x: Test {id: 1})
+set x.date1 = date("2023-09-11")
+set x.datetime1 = datetime("2023-09-11T18:33:04")
+// note that you can use iso format to seting them
+
+// we have duration too
+match (x: Text {id: 1})
+return duration.between(x.date1, x.date)
+// you can use .inDays, .inMonths, .inSeconds too
+return duration.between(x.date1, x.date).minutes
+// we can add or substract duration from a date
+return x.date1 + duration({months: 6})
+
+// the apoc library (an extenstion to neo4j)
+match (x:Test {id: 1})
+return apoc.temporal.format(x.datetime, "YYYY/MM/dd - HH:mm")
+// convert to ISO8601
+return apoc.date.toISO8601(x.datetime.epochMillis, 'ms')
+```
+
+
+
+# Graph Traversal
+
+To write better and more performant queries you need to know how graph engine travers and run queries under the hood.
+
+Anchor of a query: set of nodes where engine start with theme. this set of nodes choose based on match and where clauses and moved to memory. query planner tries to apply filters as soon as possible to reduce  cardinality (number of row in result)
+
+
+
+```cypher
+// anchor is the person nodes
+match (p:Person)-[:ACTED_IN]->(m)
+return p.name, m.title limit 100
+
+// anchor is movie nodes because there are fewer than person nodes
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+return p.name, m.title limit 100
+
+// anchor is person nodes that satisfy the where filter. if the person node has an index on `name` then only one recored retreived. if there is no index it should check filter with all person node once and then retrive nodes.
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Eminem"
+return p.name, m.title limit 100
+
+// multiple anchors
+// all p1, p2 nodes retrived as anchor
+match (p1:Person)-[:ACTED_IN]->(m1)
+match (m2)<-[:ACTED_IN]-(p2:Person)
+where p1.name = "Tom Hanks"
+and p2.name = "Meg Ryan"
+and m1 = m2
+return m1.title
+
+```
+
+![image-20231009103430323](C:\Users\Mahdi\Documents\Notes\images\image-20231009103430323.png)
+
+```cypher
+// anchor in this query is one node of clint eastwood and then expand for the relation 
+match (p:Person)--(m:Movie)
+where p.name = "Clint Eastwood"
+return m.title
+```
+
+![image-20231009103223470](C:\Users\Mahdi\Documents\Notes\images\image-20231009103223470.png)
+
+```cypher
+// first node for emimem retrived then first relation and 8 mile retrived and then the next relation and movie (explain this better)
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Eminem"
+return m.title
+```
+
+![image-20231009104158088](C:\Users\Mahdi\Documents\Notes\images\image-20231009104158088.png)
+
+
+
+```cypher
+// depth-first retrival (explain below code how runs in neo4j engine)
+// first node of eminem retived
+// relation to 8 mile and 8 mile node
+// acted_in relation for movie node -> coActors each at seprate step
+match (p:Person)-[:ACTED_IN]->(m:Movie), (coActors:Person)-[:ACTED_IN]->(m)
+where p.name = "Eminem"
+return m.title as Movie, collect(coActors.name) as CoActors
+```
+
+
+
+![image-20231009104147750](C:\Users\Mahdi\Documents\Notes\images\image-20231009104147750.png)
+
+
+
+```cypher
+// in this one we have two match clause, the diffrence is that the second match cluse run after getting movie nodes... so the allActors will be include 'Eminem' too. why? explain this
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Eminem"
+match (allActors:Person)-[:ACTED_IN]->(m)
+return m.title as Movie, collect(allActors.name) as AllActors
+```
+
+![image-20231009105002392](C:\Users\Mahdi\Documents\Notes\images\image-20231009105002392.png)
+
+```cypher
+// having a label for anchor node is good but
+// the label for m (non-anchor node) force for label check which is unnecceray and make more db hits 
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = 'Tom Hanks'
+return m.title as Movie
+
+//  this is more performant
+match (p:Person)-[:ACTED_IN]->(m)
+where p.name = 'Tom Hanks'
+return m.title as Movie
+```
+
+```cypher
+// retrive as path with relation data
+match p = ((person:Person)-[:ACTED_IN]->(movie))
+where person.name = "Walt Disney"
+return p
+```
+
+## Varying Length Traversal
+
+```cypher
+// finding shortest path between two node without any condition and bound
+match p = shortestPath((p1:Person)-[*]-(p2:Person))
+where p1.name = "Eminem" and p2.name = "Charlton Heston"
+return p
+```
+
+![image-20231009111916385](C:\Users\Mahdi\Documents\Notes\images\image-20231009111916385.png)
+
+```cypher
+// finding shortest pass based on specific relation
+match p = shortestPath((p1:Person)-[:ACTED_IN*]-(p2:Person))
+where p1.name = "Eminem" and p2.name = "Charlton Heston"
+return p
+```
+
+![image-20231009111843148](C:\Users\Mahdi\Documents\Notes\images\image-20231009111843148.png)
+
+```cypher
+// all person nodes who are exactly 2 hops away from eminem through acted_in relation
+match (p:Person {name: "Eminem"})-[:ACTED_IN*2]-(others:Person)
+return others.name as others
+```
+
+![image-20231009112904633](C:\Users\Mahdi\Documents\Notes\images\image-20231009112904633.png)  
+
+```cypher
+// exactly 4 hops away
+match (p:Person {name: "Eminem"})-[:ACTED_IN*4]-(others:Person)
+return others.name as others
+```
+
+
+
+![image-20231009113025142](C:\Users\Mahdi\Documents\Notes\images\image-20231009113025142.png)
+
+```cypher
+// up to 4 hops away ... if there was a person under 4 hops away it capture that too
+match (p:Person {name: "Eminem"})-[:ACTED_IN*1..4]-(others:Person)
+return others.name as others
+```
+
+
 
