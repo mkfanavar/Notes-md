@@ -532,3 +532,15 @@ return others.name as others
 
 
 
+# Pipelining Queries
+
+## Scoping Variables
+
+```cypher
+// define a variable
+with 'Tom Hanks' as actorName
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = actorName
+return m.title as Movie
+```
+
