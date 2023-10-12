@@ -79,7 +79,7 @@ where toUpper(m.title) contains "RIVER"
 ## Explain how a query runs
 
 ```cypher
-Explain <Query>
+tExplain <Query>
 // this command show you a visual explaination of how the query runs
 // this show paln
 ```
@@ -537,10 +537,129 @@ return others.name as others
 ## Scoping Variables
 
 ```cypher
-// define a variable
+// `m`, `p` are variables and they are in scope of match clauses and where linked to it.
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = 'Tom Hanks'
+return m.title as Movie
+
+// you can define a variable through `with` clause, the variable
 with 'Tom Hanks' as actorName
 match (p:Person)-[:ACTED_IN]->(m:Movie)
 where p.name = actorName
 return m.title as Movie
+
+// you should re-define outer scope variables to inner scopes. for example variable `m` should be re-define to second with scope then you can use it to define new variable `movieTitle`
+with 'toy story' as mt, 'Tom Hanks' as actorName
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+with m, toLower(m.title) as movieTitle
+where movieTitle contains mt and p.name = actorName
+return m.title, movieTitle
+
+// The WITH clause removes variables from scope for the RETURN clause so you must add them back to the scope. so you should re-define p
+WITH  'Clint Eastwood' AS a, 'high' AS t
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+WITH p, m, toLower(m.title) AS movieTitle
+WHERE p.name = a
+AND movieTitle CONTAINS t
+RETURN p.name AS actor, m.title AS movie
+
+// if you want limit the results (explain this more)
+with 'Tom Hanks' as theActor
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = theActor
+with m limit 2
+// do somthing with m
+return m.title as movies
+
+// order the varible and the use it in return or other match
+with 'Tom Hanks' as theActor
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = theActor
+with m order by m.year limit 5
+// do somthing with m
+return m.title as movies
+
+// use it with map projection, for customizing properties returned.
+// this will returned 10 movies with highest imdb rating and return directors of the movie as a list and other specified properties in with clasue
+match (m:Movie)
+where m.imdbRating is not null
+and m.poster is not null
+with m {
+    .title,
+    .imdbRating,
+    .imdbVotes,
+    .poster,
+    directors: [(m)<-[:DIRECTED]-(d) | d {.name, tmbdid: d.imdbId}]
+}
+order by m.imdbRating desc limit 10
+return collect(m)
+```
+
+## Pipelining Queries
+
+```cypher
+// ?
+with 'Tom Hanks' as actorName
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = actorName
+with m limit 5
+match (d:Person)-[:DIRECTED]->(m)
+return d.name as director, m.title as movies
+
+//  use `with` for aggregation to generate intermediate data to use in returned values
+match (:Movie {title: 'Toy Story'})-[:IN_GENRE]->(g:Genre)<-[:IN_GENRE]-(m:Movie)
+where m.imdbRating is not null
+with g.name as genre,
+count (m) as moviesInCommon,
+sum(m.imdbRating) as total
+return genre, moviesInCommon, total/moviesInCommon as score
+order by score desc
+                               
+// ?
+match (u:User {name: "Misty Williams"})-[r:RATED]->(:Movie)
+with u, avg(r.rating) as average
+match (u)-[r:RATED]->(m:Movie)
+where r.rating > average
+return average, m.title as movie,
+r.rating as rating
+order by rating desc 
+
+// ?
+match (m:Movie)--(a:Actor)
+where m.title contains 'New York'
+with m, collect(a.name) as actors,
+count (*) as numOfActors
+return m.title, numOfActors, actors
+
+// ?
+match (m:Movie)--(a:Actor)
+where m.title contains 'New York'
+with m, collect(a.name) as actors,
+count (*) as numOfActors
+order by numOfActors desc
+return collect(m {.title, actors, numOfActors}) as movies
+
+// ?
+match (p:Actor)
+where p.born.year = 1980
+with p limit 3
+match (p)-[:ACTED_IN]->(m:Movie)-[:IN_GENRE]->(g:Genre)
+with p, collect(DISTINCT g.name) as genres
+return p.name as actor, genres
+
+// 
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)<-[r:RATED]-(:User)
+WHERE p.name = 'Tom Hanks'
+WITH m, avg(r.rating) AS avgRating
+WHERE avgRating > 4
+RETURN m.title AS Movie, avgRating AS `AverageRating`
+ORDER BY avgRating DESC
+```
+
+## Unwinding Lists
+
+unwind returnsf a row for each element of the list
+
+```cypher
 ```
 
