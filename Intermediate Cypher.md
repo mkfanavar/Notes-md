@@ -637,7 +637,7 @@ where m.title contains 'New York'
 with m, collect(a.name) as actors,
 count (*) as numOfActors
 order by numOfActors desc
-return collect(m {.title, actors, numOfActors}) as movies
+return collect(m {.title, actors, numOfActors}) as moviesظ
 
 // ?
 match (p:Actor)
@@ -661,5 +661,136 @@ ORDER BY avgRating DESC
 unwind returnsf a row for each element of the list
 
 ```cypher
+// return a row for each movie-language pairs
+match (p:Person)-[:ACTED_IN]->(m:Movie)
+where p.name = "Tom Hanks"
+unwind m.languages as lang
+return m.title as movie, m.languages as languages, lang as language
+
+// ?
+match (m:Movie)
+unwind m.languages as lang
+with m, trim(lang) as language
+with language, collect(m.title) as movies
+return language, movies[0..10] order by language
+
+// return the number of movies released in each country.
+MATCH (m:Movie)
+UNWIND m.countries AS _country
+WITH m, trim(_country) AS coprofile
+match (m:Movie)
+match (m)<-[r:RATED]-(u:User)
+where r.rating = 5
+with m, count(u) as reviews
+return m.title, reviews
+order by reviews desc untry
+WITH country, collect(m.title) AS movies, count(m) as moviesCount
+RETURN country, moviesCount, movies[0..10] order by moviesCount desc
+```
+
+# Reducing Memory
+
+## Subqueries
+
+```cypher
+// query inside {} is the subquery
+call {
+    match (m:Movie) where m.year = 2000
+    return m order by m.imdbRating desc limit 10
+}
+match (:User)-[r:RATED]->(m)
+with m, avg(r.rating) as rating
+return m.title, rating order by rating desc
+
+// passing variable to subquery
+profile
+match (m:Movie)
+call {
+    with m
+    match (m)<-[r:RATED]-(u:User)
+    where r.rating = 5
+    return count(u) as reviews
+}
+return m.title, reviews
+order by reviews desc 
+                 
+// combine results with union
+match (m:Movie) where m.year = 2000
+return {type: "movies", theMovies: collect(m.title)} as data
+union all
+match (a:Actor) where a.born.year > 2000
+return {type: "actors", theActors: collect(a.name)} as data
+
+// result of union only can process with subqueries
+match (p:Person)
+with p limit 100
+call {
+    with p
+    optional match (p)-[:ACTED_IN]->(m:Movie)
+	return m.title + " : " + "Actor" as work
+union
+	with p
+	optional match (p)-[:DIRECTED]->(m:Movie)
+	return m.title + " : " + "Director" as work
+}
+return p.name, collect(work)
+                       
+// 
+MATCH (g:Genre)
+call {
+    with g
+    match (m:Movie)-[:IN_GENRE]->(g)
+    where "France" in m.countries
+    return count (m) as numMovies
+}
+RETURN g.name AS genre, numMovies
+ORDER BY numMovies DESC
+
+//
+MATCH (m:Movie)<-[:ACTED_IN]-(p:Person)
+WHERE m.year = 2015
+RETURN "Actor" AS type,
+p.name AS workedAs,
+collect(m.title) AS movies
+UNION ALL
+MATCH (m:Movie)<-[:DIRECTED]-(p:Person)
+WHERE m.year = 2015
+RETURN "Director" AS type,
+p.name AS workedAs,
+collect(m.title) AS movies
+```
+
+# Using Parameters
+
+```cypher
+// you can save some parameters in neo4j browser to use them in your queries
+:param actorName: "Tom Hanks"
+// in query
+match (p:Person {name: $actorName})-[:ACTED_IN]->(:Movie)
+
+// neo4j by defualt set numeric values as float
+:param number: 10
+// $number will be 10.0
+// if you want force neo4j to save as int
+:param number => 10
+
+// you can set (override) params in one step
+:params {actorName: "Mahdi", number: 10}
+          
+```
+
+ the neo4j driver for programming languages works with parameters
+
+```js
+const session = driver.session()
+const res = await session.readTransaction(tx =>
+  tx.run(`
+    MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+    WHERE m.title = $title
+    RETURN p
+    LIMIT 10
+  `,
+  { title: 'Toy Story'})
+)
 ```
 
