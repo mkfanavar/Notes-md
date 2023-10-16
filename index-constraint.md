@@ -112,3 +112,116 @@ show constraints yield name return collect('drop constraints' + name + ";") as s
 CALL apoc.schema.assert({}, {}, true)
 ```
 
+
+
+# Indexes
+
+### Best practice for leading date
+
+1. create constraints
+2. load data
+3. create indexes
+
+### In query planning at most one index can be used
+
+### Types for indexes
+
+- range
+- composite
+- text
+- point
+- full-text
+
+### Range Index
+
+an implementation of b-tree'
+#### use cases:
+
+- equality checks: `=` (for string properties `text` index maybe perform better)
+- range comparisons: `>`, `>=`, `<`, `<=`
+- string comparisons: `STARTS WITH` (can use `text`  index but may not be performant as well as `range` index)
+- existence checks: `IS NOT NULL`
+- `ENDS WITH` and `CONTAINS`: may benefit slightly from `range` index but it's recommended to use `text` index for them
+
+### Composite Indexes
+
+Range index on multiple properties of a node or relationship
+
+Properties can be of mixed types
+we use this index when multiple properties always tested together in queries
+we know that only one index can be used in query planning. so in queries like this:
+
+```cypher
+match (m:Movie) where m.year > 1999
+and m.title contains "Toy"
+return m.title, m.year, m.imdbRating
+```
+
+a composite index can make query more performant
+
+### Text Indexes
+
+for node or relationship of type string
+
+use cases:
+
+- equality checks: `=`
+
+  string comparisons: `ENDS WITH` , `CONTAINS`
+
+- List membership `x.prop in ["a", "b", "c"]`
+
+### Lookup Indexes
+
+- created automatically => index for matching node label or relationship type
+  - you should never delete these indexes 
+
+## Creating single property indexes
+
+```cypher
+// show all defined indexes
+show indexes
+
+// always we should have an `lookup` index which created by neo4j for us
+// never drop this one
+```
+
+### creating a range index property
+
+```cypher
+create index <index_name> if not exists
+for (x:<node_label>)
+on x.<property_key>
+```
+
+consider this query
+```cypher
+profile
+match (m:Movie)
+where m.title starts with "Toy"
+return m.title
+// this query need 27000 db hits
+
+create index movie_title if not exists
+for (x:Movie)
+on (x.title)
+
+// after creating this range index
+// total db hits of query reduce to 8!
+// this expriment shows us whe always should profile important queries and create indexes for them
+```
+
+### creating a range index on relationship
+
+```cypher
+create index <index_name> if not exists
+for ()-[x:<relationship_type>]-()
+on (x.<property_key>)
+```
+
+ ### Drop index
+
+```cypher
+DROP INDEX <index_name>
+```
+
