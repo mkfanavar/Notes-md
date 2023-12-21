@@ -18,7 +18,7 @@
 
 constraints are internally implemented as indexes
 
-![e](.\images\image-20231015092218581.png)
+<img src=".\images\image-20231015092218581.png" />
 
 - uniqueness constraints
   - best practice: Define a uniqueness constraints for every node label
@@ -97,7 +97,7 @@ REQUIRE (x.<property_key1>, x.<property_key2>)  IS NODE KEY
 
 ## Managing Constraints
 
-![image-20231015123725896](.\images\image-20231015123725896.png)
+<img src=".\images\image-20231015123725896.png" />
 
 ### Dropping constraints
 
