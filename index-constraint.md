@@ -18,7 +18,7 @@
 
 constraints are internally implemented as indexes
 
-![e](C:\Users\Mahdi\Documents\Notes\images\image-20231015092218581.png)
+![e](.\images\image-20231015092218581.png)
 
 - uniqueness constraints
   - best practice: Define a uniqueness constraints for every node label
@@ -97,7 +97,7 @@ REQUIRE (x.<property_key1>, x.<property_key2>)  IS NODE KEY
 
 ## Managing Constraints
 
-![image-20231015123725896](C:\Users\Mahdi\Documents\Notes\images\image-20231015123725896.png)
+![image-20231015123725896](.\images\image-20231015123725896.png)
 
 ### Dropping constraints
 
@@ -176,8 +176,6 @@ use cases:
 - created automatically => index for matching node label or relationship type
   - you should never delete these indexes 
 
-## Creating single property indexes
-
 ```cypher
 // show all defined indexes
 show indexes
@@ -186,7 +184,7 @@ show indexes
 // never drop this one
 ```
 
-### creating a range index property
+## Range Indexes
 
 ```cypher
 create index <index_name> if not exists
@@ -225,3 +223,139 @@ on (x.<property_key>)
 DROP INDEX <index_name>
 ```
 
+## Composite Indexes
+
+```cypher
+CREATE INDEX <index_name> IF NOT EXISTS
+FOR (x:<node_label>)
+ON (x.<property_key1>, x.<property_key2>) 	
+```
+
+```cypher
+match (m:Movie)
+where m.year = 2000 and m.runtime <= 60
+return m.title, m.year, m.runtime
+// this query needs 28000 db hits
+// then create an index
+create index movie_year_title_index
+for (x:Movie)
+on (x.year, x.runtime)
+// now the last query needs only 10 db hits to run
+// i notice that the order of properties in index creation is influntial to quality of index
+// for example `on (x.runtime, x.yaer)` is not performant as `on (x.year, x.runtime`)
+// because in query .year comes first and then .runtime
+
+// this index is not used when we check existstence of a property
+// also when we query based on one of those properties (.title, .runtime), engine doesn't use index for matching nodes
+```
+
+```cypher
+CREATE INDEX <index_name> IF NOT EXISTS
+FOR ()-[x:<relationship_type>]-()
+ON (x:<property_key1>, x.<property_key2>)
+```
+
+## Text Indexes
+
+```cypher
+CREATE TEXT INDEX <index_name> IF NOT EXISTS
+FOR (x:<node_label>)
+ON x.<property_key>
+```
+
+we know that  generally total db hits is a good measure to compare performance.
+but in case of text indexes sometimes total db hits is high but elapsed time of running query is lower. when we have text index we should consider that lower elapsed time is more important.
+
+### Why use a Text Index over a Range Index?
+
+- text indexes perform better than range index when we have a lot of duplicate properties.
+- text indexes take up less space in the graph
+
+```cypher
+CREATE TEXT INDEX <index_name> IF NOT EXISTS
+FOR ()-[x:<relationship_type>]-()
+ON x.<property_key>
+```
+
+
+
+## Full-Text Index
+
+- useful for queries that must parse a string property value
+
+- implemented to use Apache Lucene
+
+- you can use Lucene's query language to retrieve data
+
+- you need explicitly call to use the index
+
+
+  ```cypher
+  call db.index.fulltext.queryNodes
+  ('Movie_plot_ft', 'murder AND drugs')
+  YIELD node
+  ```
+
+  ```cypher
+  // creating full-text index
+  create fulltext index <index_name> if not exists
+  for (x:<node_label>)
+  on each [x.<property_key>]
+  ```
+
+  when you profile this type of procedure call, total db hits is wrong value. only elapsed time should be consider.
+
+  ```cypher
+  create fulltext index <index_name> if not exists
+  for ()-[x:<relationship_type>]-()
+  on each [x.<property_key>]
+           
+           
+  // for multiple properties
+  // you can combine multiple label and multiple nodes 
+  create fulltext index <index_name> if not exists
+  (x:<node_label1> | <node_label2> | ...)
+  on each [x.<property_key1>, x.<property_key2>,...]
+  ```
+
+  ```cypher
+  call db.index.fulltext.queryRelationships
+  ("<index_name", "lucene_query")
+  yield relationship
+  return relationship.<property>
+  ```
+
+  example
+
+  ```cypher
+  create text index movie_plot_text if not exists
+  for (x:Movie)
+  on (x.plot)
+  
+  create text index movie_title_text if not exists
+  for (x:Movie)
+  on (x.text)
+  
+  create text index actor_bio_text if not exists
+  for (x:Actor)
+  on (x.bio)
+  ```
+
+  ```cypher
+  profile
+  match (m:Movie)
+  where (m.plot contains 'british'
+  or m.plot contains "British")
+  and (m.title contains "death" or m.title contains "Death")
+  return m.name as Name, m.bio as Bio, m.title as Title, m.plot as Plot
+  
+  Union All
+  
+  match (a:Actor)
+  where (a.bio contains "British" or a.bio contains "british")
+  and (a.bio contains "actress" or a.bio contains "Actress")
+  ```
+
+  
+
+  

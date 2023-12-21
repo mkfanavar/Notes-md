@@ -355,7 +355,7 @@ call apoc.meta.nodeTypeProperties()
 // we see there is thre data type of Date, DateTime and Time for label of Test
 ```
 
-![image-20231008080818870](C:\Users\Mahdi\Documents\Notes\images\image-20231008080818870.png)
+![image-20231008080818870](.\images\image-20231008080818870.png)
 
 ```cypher
 // you can access components of date types
@@ -418,7 +418,7 @@ return m1.title
 
 ```
 
-![image-20231009103430323](C:\Users\Mahdi\Documents\Notes\images\image-20231009103430323.png)
+![image-20231009103430323](.\images\image-20231009103430323.png)
 
 ```cypher
 // anchor in this query is one node of clint eastwood and then expand for the relation 
@@ -427,7 +427,7 @@ where p.name = "Clint Eastwood"
 return m.title
 ```
 
-![image-20231009103223470](C:\Users\Mahdi\Documents\Notes\images\image-20231009103223470.png)
+![image-20231009103223470](.\images\image-20231009103223470.png)
 
 ```cypher
 // first node for emimem retrived then first relation and 8 mile retrived and then the next relation and movie (explain this better)
@@ -436,7 +436,7 @@ where p.name = "Eminem"
 return m.title
 ```
 
-![image-20231009104158088](C:\Users\Mahdi\Documents\Notes\images\image-20231009104158088.png)
+![image-20231009104158088](.\images\image-20231009104158088.png)
 
 
 
@@ -452,7 +452,7 @@ return m.title as Movie, collect(coActors.name) as CoActors
 
 
 
-![image-20231009104147750](C:\Users\Mahdi\Documents\Notes\images\image-20231009104147750.png)
+![image-20231009104147750](.\images\image-20231009104147750.png)
 
 
 
@@ -464,7 +464,7 @@ match (allActors:Person)-[:ACTED_IN]->(m)
 return m.title as Movie, collect(allActors.name) as AllActors
 ```
 
-![image-20231009105002392](C:\Users\Mahdi\Documents\Notes\images\image-20231009105002392.png)
+![image-20231009105002392](.\images\image-20231009105002392.png)
 
 ```cypher
 // having a label for anchor node is good but
@@ -495,7 +495,7 @@ where p1.name = "Eminem" and p2.name = "Charlton Heston"
 return p
 ```
 
-![image-20231009111916385](C:\Users\Mahdi\Documents\Notes\images\image-20231009111916385.png)
+![image-20231009111916385](.\images\image-20231009111916385.png)
 
 ```cypher
 // finding shortest pass based on specific relation
@@ -504,7 +504,7 @@ where p1.name = "Eminem" and p2.name = "Charlton Heston"
 return p
 ```
 
-![image-20231009111843148](C:\Users\Mahdi\Documents\Notes\images\image-20231009111843148.png)
+![image-20231009111843148](.\images\image-20231009111843148.png)
 
 ```cypher
 // all person nodes who are exactly 2 hops away from eminem through acted_in relation
@@ -512,7 +512,7 @@ match (p:Person {name: "Eminem"})-[:ACTED_IN*2]-(others:Person)
 return others.name as others
 ```
 
-![image-20231009112904633](C:\Users\Mahdi\Documents\Notes\images\image-20231009112904633.png)  
+![image-20231009112904633](.\images\image-20231009112904633.png)  
 
 ```cypher
 // exactly 4 hops away
@@ -522,7 +522,7 @@ return others.name as others
 
 
 
-![image-20231009113025142](C:\Users\Mahdi\Documents\Notes\images\image-20231009113025142.png)
+![image-20231009113025142](.\images\image-20231009113025142.png)
 
 ```cypher
 // up to 4 hops away ... if there was a person under 4 hops away it capture that too
